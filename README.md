@@ -8,3 +8,8 @@ Python3.x, pip, twisted
     apt-get install python3-pip python3-dev curl python3-twisted dnsutils
     pip install -r requirements.txt
     python3 dns.py
+
+## Public DNS
+    91.218.128.57 — clean mode (remove blocked addresses)
+    147.45.195.22 — advanced modes are available (should be activated at http://147.45.195.22 first)
+    
