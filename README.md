@@ -6,9 +6,10 @@ Python3.x, pip, twisted
 > Example for Debian 9.6
 
 ```bash
+apt-get update
 apt-get install python3-pip python3-dev curl python3-twisted dnsutils git
-#git clone https://github.com/FFAMax/dns4psn.git
-git clone https://github.com/mr-aggro/dns4psn.git
+git clone https://github.com/FFAMax/dns4psn.git
+#git clone https://github.com/mr-aggro/dns4psn.git
 cd dns4psn/
 pip3 install -r requirements.txt
 python3 dns.py
