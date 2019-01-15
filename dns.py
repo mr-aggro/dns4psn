@@ -122,7 +122,8 @@ class MyDNSServerFactory(server.DNSServerFactory):
         response = self._responseFromMessage(
             message=message, rCode=dns.OK,
             answers=ans, authority=auth, additional=add)
-        print("Checking host: ", qname.decode('UTF-8'), "from ", address)
+        #print("Checking host: ", qname.decode('UTF-8'), "from ", address)
+        print("Checking host: ", qname.decode('UTF-8'), "from <hidden>")
         temp_ans = []
         for i in ans:
             temp_ans.append(i)
@@ -135,9 +136,9 @@ class MyDNSServerFactory(server.DNSServerFactory):
             ip = socket.inet_ntoa(answer.payload.address)
             in_out = razbor_net(ip, rkn)
             if in_out is False:
-                print("---> ", ip)
+                print("[ CLEAN ]> ", ip)
             elif in_out is True:
-                print("!!!> ", ip)
+                print("[ DIRTY ]> ", ip)
                 if len(ans) > 1:
                     ans.remove(answer)
                 else:
