@@ -122,8 +122,7 @@ class MyDNSServerFactory(server.DNSServerFactory):
         response = self._responseFromMessage(
             message=message, rCode=dns.OK,
             answers=ans, authority=auth, additional=add)
-        #print("Checking host: ", qname.decode('UTF-8'), "from ", address)
-        print("Checking host: ", qname.decode('UTF-8'), "from <hidden>")
+        print("Checking host: ", qname.decode('UTF-8'), "from ", address)
         temp_ans = []
         for i in ans:
             temp_ans.append(i)
