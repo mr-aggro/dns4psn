@@ -8,7 +8,7 @@ import time
 import socket, struct
 from threading import Thread
 
-DELAY = 60*60*4 #Задержка обновлений списка банов
+DELAY = 60*60*4 #Задержка обновлений списка банов в секундах (4 часа)
 DELAY_CLEAR = 60
 WHITE_LIST = ["127.0.0.1"]
 rkn = []
@@ -202,6 +202,10 @@ def update_bans():
 
 
 def make_ban():
+    """
+    # Никогда не вернет False
+    # Нужно проверять код выхода при выполнении cmd и вызывать return False, если код !=0
+    """
     try:
         cmd = "curl -s https://raw.githubusercontent.com/zapret-info/z-i/master/dump.csv | cut -d ';' -f 1 |  tr '|' '\n' | grep '/' | tr -d ' ' | sort -k1 -n"
         for i in os.popen(cmd).read().split('\n'):
@@ -220,14 +224,15 @@ class DownloadThread(Thread):
     def run(self):
         """Запуск потока"""
         while True:
-            if int(time.time()) - self.now > DELAY:
-                print("[i] Чтение новых записей")
-                if make_ban() is not False:
-                    update_bans()# pass
-                    self.now = int(time.time())
-                    print("[i] Записи о заблокированых подсетях обновлены")
-                else:
-                    print("[W] Записи о заблокированых подсетях НЕ обновлены")
+            print("[i] Чтение новых записей")
+            if make_ban() is not False:
+                update_bans()# pass
+											   
+                print("[i] Записи о заблокированых подсетях обновлены")
+                time.sleep(DELAY)
+            else:
+                print("[W] Записи о заблокированых подсетях НЕ обновлены")
+                time.sleep(DELAY)
 
 
 def main(port):
