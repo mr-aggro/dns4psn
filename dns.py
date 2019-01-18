@@ -200,6 +200,7 @@ def update_bans():
         rkn.append({"ip": net.split("/")[0], "mask": net.split("/")[1].replace("\n", "")})
 
 
+
 def make_ban():
     """
     # Никогда не вернет False
@@ -233,7 +234,7 @@ class DownloadThread(Thread):
                 print("[W] Записи о заблокированых подсетях НЕ обновлены")
                 time.sleep(DELAY)
 
-
+                
 def main(port):
     print("[i] Скачиваем список заблокированых адресов")
     if make_ban() is False:
