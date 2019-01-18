@@ -135,9 +135,9 @@ class MyDNSServerFactory(server.DNSServerFactory):
             ip = socket.inet_ntoa(answer.payload.address)
             in_out = razbor_net(ip, rkn)
             if in_out is False:
-                print("---> ", ip)
+                print("[ CLEAN ]> ", ip)
             elif in_out is True:
-                print("!!!> ", ip)
+                print("[ DIRTY ]> ", ip)
                 if len(ans) > 1:
                     ans.remove(answer)
                 else:
@@ -224,17 +224,17 @@ class DownloadThread(Thread):
     def run(self):
         """Запуск потока"""
         while True:
-            if int(time.time()) - self.now > DELAY:
-                print("[i] Чтение новых записей")
-                if make_ban() is not False:
-                    update_bans()# pass
-                    self.now = int(time.time())
-                    print("[i] Записи о заблокированых подсетях обновлены")
-                else:
-                    self.now = int(time.time())
-                    print("[W] Записи о заблокированых подсетях НЕ обновлены")
+            print("[i] Чтение новых записей")
+            if make_ban() is not False:
+                update_bans()# pass
+											   
+                print("[i] Записи о заблокированых подсетях обновлены")
+                time.sleep(DELAY)
+            else:
+                print("[W] Записи о заблокированых подсетях НЕ обновлены")
+                time.sleep(DELAY)
 
-
+                
 def main(port):
     print("[i] Скачиваем список заблокированых адресов")
     if make_ban() is False:
