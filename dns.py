@@ -233,7 +233,7 @@ def apply_block_records():
 
 
 def download_block_records():
-    """ 
+    """
     # Никогда не вернет False
     # Нужно проверять код выхода при выполнении cmd и вызывать return False, если код !=0
     """
