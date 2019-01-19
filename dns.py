@@ -1,18 +1,26 @@
-import re
-import sys
 import os
-from twisted.names import client, dns, server, hosts as hosts_module, root, cache, resolve
-from twisted.internet import reactor
-from twisted.python.runtime import platform
+import re
+import socket
+import struct
+import sys
 import time
-import socket, struct
 from threading import Thread
 
-DELAY = 60*60*4 #Задержка обновлений списка банов в секундах (4 часа)
+from twisted.internet import reactor
+from twisted.names import client, dns, server, hosts as hosts_module, root, cache, resolve
+from twisted.python.runtime import platform
+
+DELAY = 60 * 60 * 4  # Задержка обновлений списка банов в секундах (4 часа)
 DELAY_CLEAR = 60
 WHITE_LIST = ["127.0.0.1"]
-rkn = []
 BAN = []
+rkn_array = {}
+rkn_array_tmp = {}
+first_start = True
+
+for mask in range(32, -1, -1):  # Fill from 32 to 0
+    rkn_array[mask] = {}
+    rkn_array_tmp[mask] = {}
 
 
 def ip2long(ip):
@@ -26,21 +34,22 @@ def ip2long(ip):
         return None
 
 
-def check_rkn(ip, rkn):
-    rkn_mask = int(rkn["mask"])
-    rkn_ip = str(rkn["ip"])
+def razbor_net(inputAddress_long):
     try:
-        return (ip2long(ip) & (-1 << (32 - rkn_mask)) ) == ip2long(rkn_ip)
-    except Exception:
+        for mask in range(32, -1, -1):
+            # print("Mask: ", mask)
+            inputAddress_long_masked = inputAddress_long & (-1 << (32 - mask))
+            if rkn_array[mask].get(inputAddress_long_masked) is True:
+                # print("True")
+                return True
+            else:
+                if mask is 0:
+                    # print("None")
+                    return None
+    except Exception as e:
+        print("Exception: ", e, " Address: ", inputAddress_long)
         return None
-
-
-def razbor_net(cur_ip_adrr, ip_array):
-    flag = False
-    for cur_cidr in ip_array:
-        if check_rkn(cur_ip_adrr, cur_cidr) is True:
-            flag = True
-    return flag
+    return False
 
 
 def search_file_for_all(hosts_file, name):
@@ -60,7 +69,7 @@ def search_file_for_all(hosts_file, name):
         parts = line.split()
         for domain in [s.lower() for s in parts[1:]]:
             if (domain.startswith(b'/') and domain.endswith(b'/') and
-                    re.search(domain.strip('/'), name.lower())) or name.lower() == domain.lower():
+                re.search(domain.strip('/'), name.lower())) or name.lower() == domain.lower():
                 results.append(hosts_module.nativeString(parts[0]))
     return results
 
@@ -93,6 +102,7 @@ def create_resolver(servers=None, resolvconf=None, hosts=None):
 
     return resolve.ResolverChain([host_resolver, cache.CacheResolver(), the_resolver])
 
+
 class MyDNSServerFactory(server.DNSServerFactory):
     clear = int(time.time())
     allow = {}
@@ -122,7 +132,8 @@ class MyDNSServerFactory(server.DNSServerFactory):
         response = self._responseFromMessage(
             message=message, rCode=dns.OK,
             answers=ans, authority=auth, additional=add)
-        print("Checking host: ", qname.decode('UTF-8'), "from ", address)
+        # print("Checking host: ", qname.decode('UTF-8'), "from ", address)
+        print("Checking host: ", qname.decode('UTF-8'), "from <hidden>")
         temp_ans = []
         for i in ans:
             temp_ans.append(i)
@@ -133,8 +144,8 @@ class MyDNSServerFactory(server.DNSServerFactory):
             if answer.type != dns.A:
                 continue
             ip = socket.inet_ntoa(answer.payload.address)
-            in_out = razbor_net(ip, rkn)
-            if in_out is False:
+            in_out = razbor_net(ip2long(ip))
+            if in_out is None:
                 print("[ CLEAN ]> ", ip)
             elif in_out is True:
                 print("[ DIRTY ]> ", ip)
@@ -178,7 +189,8 @@ class MyDNSServerFactory(server.DNSServerFactory):
             return None
 
         # При привышении 200 запросов в DELAY_CLEAR отключение TXT|ANY запросов
-        if self.allow.get(address[0]) > 200 and (query.type == 16 or query.type == 255) and address[0] not in WHITE_LIST:
+        if self.allow.get(address[0]) > 200 and (query.type == 16 or query.type == 255) and address[
+            0] not in WHITE_LIST:
             print("Block ALL TXT")
             return self.sendReply(protocol, message, address)
 
@@ -189,30 +201,50 @@ class MyDNSServerFactory(server.DNSServerFactory):
             self.gotResolverError, protocol, message, address
         )
 
-def update_ip_tables():
-    cmd = "sh {}/network.sh".format(here)
-    os.system(cmd)
 
-def update_bans():
+def apply_block_records():
+    global rkn_array, rkn_array_tmp
     f = BAN
-    rkn.clear()
     for net in f:
-        rkn.append({"ip": net.split("/")[0], "mask": net.split("/")[1].replace("\n", "")})
+        try:
+            net = net.replace(" ", "")
+            mask = int(net.split("/")[1].replace("\n", ""))
+            address_long = int(ip2long(net.split("/")[0].replace("\n", "")))
+            if mask in rkn_array_tmp:
+                rkn_array_tmp[mask][address_long] = True
+            else:
+                rkn_array_tmp[mask] = {}
+                rkn_array_tmp[mask][address_long] = True
+        except Exception:
+            # print (rkn_array_tmp)
+            print("Warning: can't process: `", net, "`")
+            return False
+    rkn_array = rkn_array_tmp.copy()
+    rkn_array_tmp.clear()
+    BAN.clear()
+    for mask in range(32, -1, -1):  # Fill from 32 to 0
+        rkn_array_tmp[mask] = {}
+    return True
 
 
-
-def make_ban():
+def download_block_records():
     """
     # Никогда не вернет False
     # Нужно проверять код выхода при выполнении cmd и вызывать return False, если код !=0
     """
     try:
-        cmd = "curl -s https://raw.githubusercontent.com/zapret-info/z-i/master/dump.csv | cut -d ';' -f 1 |  tr '|' '\n' | grep '/' | tr -d ' ' | sort -k1 -n"
+        cmd = "curl -s https://raw.githubusercontent.com/zapret-info/z-i/master/dump.csv | cut -d ';' -f 1 |  tr '|' '\n' | grep '/' | tr -d ' ' | sort -k1 -n | uniq"
+        cmd3 = "curl -s https://raw.githubusercontent.com/zapret-info/z-i/master/dump.csv | cut -d ';' -f 1 |  tr '|' '\n' | grep -v '/' | grep -oE \"\\b([0-9]{1,3}\.){3}[0-9]{1,3}\\b\" | tr -d ' ' | sort -k1 -n | uniq | awk '{print $1\"/32\"}'"
+
         for i in os.popen(cmd).read().split('\n'):
             BAN.append(i)
         BAN.remove("")
-    except:
+        for i in os.popen(cmd3).read().split('\n'):
+            BAN.append(i)
+        BAN.remove("")
+    except Exception:
         return False
+
 
 class DownloadThread(Thread):
     def __init__(self):
@@ -220,29 +252,31 @@ class DownloadThread(Thread):
         Thread.__init__(self)
         self.now = int(time.time())
 
-
     def run(self):
         """Запуск потока"""
+        global first_start
+        if first_start is True:
+            first_start = False
+            time.sleep(DELAY)
         while True:
             print("[i] Чтение новых записей")
-            if make_ban() is not False:
-                update_bans()# pass
-											   
+            if download_block_records() is not False:
+                apply_block_records()  # pass
                 print("[i] Записи о заблокированных подсетях обновлены")
                 time.sleep(DELAY)
             else:
                 print("[W] Записи о заблокированных подсетях НЕ обновлены")
                 time.sleep(DELAY)
 
-                
+
 def main(port):
     print("[i] Скачиваем список заблокированных адресов")
-    if make_ban() is False:
+    if download_block_records() is False:
         print("[!] Скачивание не удалось! Выход из программы!")
         os._exit(0)
     print("[i] Список заблокированных адресов получен")
     print("[i] Чтение записей о блокировке")
-    update_bans()
+    apply_block_records()
     print("[i] Записи о заблокированных подсетях обновлены")
     print("[i] Запускаем поток обновлений")
     thread = DownloadThread()
@@ -253,8 +287,20 @@ def main(port):
     )
     protocol = dns.DNSDatagramProtocol(controller=factory)
 
+    import signal
+
+    def custom_handler(signum, stackframe):
+        # print("Got signal: %s" % signum)
+        reactor.callFromThread(reactor.stop)  # to stop twisted code when in the reactor loop
+
+    def stop_function():
+        print("\nStop")
+        os._exit(0)
+
     reactor.listenUDP(port, protocol)
     reactor.listenTCP(port, factory)
+    signal.signal(signal.SIGINT, custom_handler)
+    reactor.addSystemEventTrigger('after', 'shutdown', stop_function)
     reactor.run()
 
 
