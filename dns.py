@@ -204,6 +204,7 @@ class MyDNSServerFactory(server.DNSServerFactory):
 
 def apply_block_records():
     global rkn_array, rkn_array_tmp
+    global first_start
     f = BAN
     for net in f:
         try:
@@ -224,6 +225,9 @@ def apply_block_records():
     BAN.clear()
     for mask in range(32, -1, -1):  # Fill from 32 to 0
         rkn_array_tmp[mask] = {}
+    if first_start is True:
+        first_start = False
+        print("[ READY ]")
     return True
 
 
@@ -250,14 +254,9 @@ class DownloadThread(Thread):
     def __init__(self):
         """Инициализация потока"""
         Thread.__init__(self)
-        self.now = int(time.time())
 
     def run(self):
         """Запуск потока"""
-        global first_start
-        if first_start is True:
-            first_start = False
-            time.sleep(DELAY)
         while True:
             print("[i] Чтение новых записей")
             if download_block_records() is not False:
@@ -270,14 +269,6 @@ class DownloadThread(Thread):
 
 
 def main(port):
-    print("[i] Скачиваем список заблокированных адресов")
-    if download_block_records() is False:
-        print("[!] Скачивание не удалось! Выход из программы!")
-        os._exit(0)
-    print("[i] Список заблокированных адресов получен")
-    print("[i] Чтение записей о блокировке")
-    apply_block_records()
-    print("[i] Записи о заблокированных подсетях обновлены")
     print("[i] Запускаем поток обновлений")
     thread = DownloadThread()
     thread.start()
