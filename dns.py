@@ -16,7 +16,7 @@ WHITE_LIST = ["127.0.0.1"]
 BAN = []
 rkn_array = {}
 rkn_array_tmp = {}
-first_start = True
+service_is_ready = False
 
 for mask in range(32, -1, -1):  # Fill from 32 to 0
     rkn_array[mask] = {}
@@ -204,8 +204,9 @@ class MyDNSServerFactory(server.DNSServerFactory):
 
 def apply_block_records():
     global rkn_array, rkn_array_tmp
-    global first_start
+    global service_is_ready
     f = BAN
+    
     for net in f:
         try:
             net = net.replace(" ", "")
@@ -225,9 +226,9 @@ def apply_block_records():
     BAN.clear()
     for mask in range(32, -1, -1):  # Fill from 32 to 0
         rkn_array_tmp[mask] = {}
-    if first_start is True:
-        first_start = False
-        print("[ READY ]")
+    if service_is_ready is False:
+        service_is_ready = True
+        print("[ READY TO SERVE ]")
     return True
 
 
@@ -236,6 +237,10 @@ def download_block_records():
     # Никогда не вернет False
     # Нужно проверять код выхода при выполнении cmd и вызывать return False, если код !=0
     """
+    global service_is_ready
+    if service_is_ready is False:
+        print("[ WARMING UP ]")
+
     try:
         cmd = "curl -s https://raw.githubusercontent.com/zapret-info/z-i/master/dump.csv | cut -d ';' -f 1 |  tr '|' '\n' | grep '/' | tr -d ' ' | sort -k1 -n | uniq"
         cmd3 = "curl -s https://raw.githubusercontent.com/zapret-info/z-i/master/dump.csv | cut -d ';' -f 1 |  tr '|' '\n' | grep -v '/' | grep -oE \"\\b([0-9]{1,3}\.){3}[0-9]{1,3}\\b\" | tr -d ' ' | sort -k1 -n | uniq | awk '{print $1\"/32\"}'"
@@ -260,8 +265,8 @@ class DownloadThread(Thread):
         while True:
             print("[i] Чтение новых записей")
             if download_block_records() is not False:
-                apply_block_records()  # pass
-                print("[i] Записи о заблокированных подсетях обновлены")
+                if apply_block_records() is True:
+                    print("[i] Записи о заблокированных подсетях обновлены")
                 time.sleep(DELAY)
             else:
                 print("[W] Записи о заблокированных подсетях НЕ обновлены")
